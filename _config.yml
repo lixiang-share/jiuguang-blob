@@ -6,7 +6,7 @@ header-img: img/post-bg-desk.jpg
 email: 3311722828@qq.com
 description: "Every failure is leading towards success."
 keyword: "BY, BY Blog, 久光的博客, qiubaiying, 久光, iOS, Apple, iPhone"
-url: "http://lixiang-share.github.io"          # your host, for absolute URL
+url: "https://lixiang-share.github.io"          # your host, for absolute URL
 baseurl: ""      # for example, '/blog' if your blog hosted on 'host/blog'
 github_repo: "https://github.com/lixiang-share/lixiang-share.github.io" # you code repository
 
