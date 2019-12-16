@@ -1,6 +1,4 @@
-<<<<<<< HEAD
 theme: jekyll-theme-cayman
-=======
 # Site settings
 title: BY Blog
 SEOTitle: 久光分享
@@ -115,4 +113,3 @@ friends: [
         href: "https://developer.apple.com/"
     }
 ]
->>>>>>> init blob
