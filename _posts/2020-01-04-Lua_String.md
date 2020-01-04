@@ -1,6 +1,6 @@
 ---
 layout:     post
-title:      Lua数据类型
+title:      Lua string
 subtitle:   Lua源码分析——string
 date:       2019-12-28
 author:     jiuguang
@@ -282,6 +282,7 @@ print("concat .. : ", os.clock() - curTime)
 ```
 
 3. lngstring操作每次都会大量产生lngstring对象，会频繁引起gc，如果有大量lngstring，可以考虑参考string中的"一级缓存" 或者扩大lngstring临界size
+
 ```
 function TestMemory(preStr)
     collectgarbage("stop")
