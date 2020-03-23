@@ -69,8 +69,6 @@ float getX(Point* this) { return this->x; }
 float getY(Point* this) { return this->y; }
 ```
 
-+ 成员func相互调用也是基于此原理
-
 #### 多态下class模型
 
 C++发生继承后，object model 会有怎样的变化呢？
@@ -124,6 +122,142 @@ Point Size: 32
 
 
 ### 什么是"编译器需要"？
+
+"C++ class如果没有定义Constructor/Destructor，那么编译器就会自动生成一个"，这个理论一定正确吗？----> 答：并不是，准确说仅仅当"编译器需要"时才会自动生成。
+
+```
+class Empty
+{
+private:
+	float x;
+public:
+	Empty() { x = 1;};
+	~Empty() {};
+};
+
+int main(int argc, char const *argv[])
+{
+	Empty e;
+	return 0;
+}
+```
+用```g++ -c Empty.cpp -o Empty.o```编译出目标对象，然后```readelf -s Empty.o```查看symtbl，直观就可以看到，constructor/destructor 被mangling后的符号
+```
+Symbol table '.symtab' contains 22 entries:
+   Num:    Value          Size Type    Bind   Vis      Ndx Name
+     0: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT  UND 
+     1: 0000000000000000     0 FILE    LOCAL  DEFAULT  ABS Empty.cpp
+     2: 0000000000000000     0 SECTION LOCAL  DEFAULT    3 
+     3: 0000000000000000     0 SECTION LOCAL  DEFAULT    5 
+     4: 0000000000000000     0 SECTION LOCAL  DEFAULT    6 
+     5: 0000000000000000     0 SECTION LOCAL  DEFAULT    7 
+     6: 0000000000000000     0 SECTION LOCAL  DEFAULT    9 
+     7: 0000000000000000     0 SECTION LOCAL  DEFAULT   10 
+     8: 0000000000000000     0 SECTION LOCAL  DEFAULT   12 
+     9: 0000000000000000     0 SECTION LOCAL  DEFAULT   13 
+    10: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT    1 _ZN5EmptyC5Ev
+    11: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT    2 _ZN5EmptyD5Ev
+    12: 0000000000000000     0 SECTION LOCAL  DEFAULT   11 
+    13: 0000000000000000     0 SECTION LOCAL  DEFAULT    1 
+    14: 0000000000000000     0 SECTION LOCAL  DEFAULT    2 
+    15: 0000000000000000    27 FUNC    WEAK   DEFAULT    7 _ZN5EmptyC2Ev
+    16: 0000000000000000    27 FUNC    WEAK   DEFAULT    7 _ZN5EmptyC1Ev
+    17: 0000000000000000    11 FUNC    WEAK   DEFAULT    9 _ZN5EmptyD2Ev
+    18: 0000000000000000    11 FUNC    WEAK   DEFAULT    9 _ZN5EmptyD1Ev
+    19: 0000000000000000    89 FUNC    GLOBAL DEFAULT    3 main
+    20: 0000000000000000     0 NOTYPE  GLOBAL DEFAULT  UND _GLOBAL_OFFSET_TABLE_
+    21: 0000000000000000     0 NOTYPE  GLOBAL DEFAULT  UND __stack_chk_fail
+
+```
+然后如果删除代码中的constructor/destructor定义：
+```
+class Empty
+{
+private:
+	float x;
+};
+
+int main(int argc, char const *argv[])
+{
+	Empty e;
+	return 0;
+}
+```
+重复上述过程，会发现constructor/destructor相关符号消失了：
+
+```
+Symbol table '.symtab' contains 9 entries:
+   Num:    Value          Size Type    Bind   Vis      Ndx Name
+     0: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT  UND 
+     1: 0000000000000000     0 FILE    LOCAL  DEFAULT  ABS Empty.cpp
+     2: 0000000000000000     0 SECTION LOCAL  DEFAULT    1 
+     3: 0000000000000000     0 SECTION LOCAL  DEFAULT    2 
+     4: 0000000000000000     0 SECTION LOCAL  DEFAULT    3 
+     5: 0000000000000000     0 SECTION LOCAL  DEFAULT    5 
+     6: 0000000000000000     0 SECTION LOCAL  DEFAULT    6 
+     7: 0000000000000000     0 SECTION LOCAL  DEFAULT    4 
+     8: 0000000000000000    18 FUNC    GLOBAL DEFAULT    1 main
+```
+
+那么编译器什么情况会生成默认constructor/destructor，
++ 成员变量 具有default constructor --> 构造时必须调成员的构造方法
++ Base class 具有default constructor --> 构造时必须调base 构造方法
++ 带有virtual 方法的class --> 构造时必须初始化vtbl
++ base class 具有virtual 方法 --> 构造时必须初始化vtbl
+
+简单说，只有”编译器需要“的时候才会调整代码结构，插入它需要的代码段。上述结论用virtual base 做个案例：
+```
+class base
+{
+public:
+	virtual void print(){}
+};
+
+class deriver: public base
+{
+public:
+	int a;
+	void print() { a = 2;}
+};
+
+int main(int argc, char const *argv[])
+{
+	deriver d;
+	return 0;
+}
+```
+用readefl查看符号表
+```
+Symbol table '.symtab' contains 47 entries:
+   Num:    Value          Size Type    Bind   Vis      Ndx Name
+     0: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT  UND 
+     1: 0000000000000000     0 FILE    LOCAL  DEFAULT  ABS Empty.cpp
+	....
+    17: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT    3 _ZN4baseC5Ev
+    18: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT    4 _ZN7deriverC5Ev
+ 	.....
+    29: 0000000000000000     0 SECTION LOCAL  DEFAULT   10 
+    30: 0000000000000000    11 FUNC    WEAK   DEFAULT   15 _ZN4base5printEv
+    31: 0000000000000000    22 FUNC    WEAK   DEFAULT   16 _ZN7deriver5printEv
+    32: 0000000000000000    25 FUNC    WEAK   DEFAULT   17 _ZN4baseC2Ev
+    33: 0000000000000000    24 OBJECT  WEAK   DEFAULT   23 _ZTV4base
+    34: 0000000000000000    25 FUNC    WEAK   DEFAULT   17 _ZN4baseC1Ev
+    35: 0000000000000000    41 FUNC    WEAK   DEFAULT   19 _ZN7deriverC2Ev
+    36: 0000000000000000    24 OBJECT  WEAK   DEFAULT   21 _ZTV7deriver
+    37: 0000000000000000    41 FUNC    WEAK   DEFAULT   19 _ZN7deriverC1Ev
+    38: 0000000000000000    69 FUNC    GLOBAL DEFAULT   11 main
+    39: 0000000000000000     0 NOTYPE  GLOBAL DEFAULT  UND _GLOBAL_OFFSET_TABLE_
+    40: 0000000000000000     0 NOTYPE  GLOBAL DEFAULT  UND __stack_chk_fail
+    41: 0000000000000000    24 OBJECT  WEAK   DEFAULT   25 _ZTI7deriver
+    42: 0000000000000000    16 OBJECT  WEAK   DEFAULT   28 _ZTI4base
+    43: 0000000000000000     0 NOTYPE  GLOBAL DEFAULT  UND _ZTVN10__cxxabiv120__si_c
+    44: 0000000000000000     9 OBJECT  WEAK   DEFAULT   27 _ZTS7deriver
+    45: 0000000000000000     0 NOTYPE  GLOBAL DEFAULT  UND _ZTVN10__cxxabiv117__clas
+    46: 0000000000000000     6 OBJECT  WEAK   DEFAULT   30 _ZTS4base
+```
+
+
+
 
 ### "继承"做了哪些事？
 
