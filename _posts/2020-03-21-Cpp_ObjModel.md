@@ -256,14 +256,61 @@ Symbol table '.symtab' contains 47 entries:
     46: 0000000000000000     6 OBJECT  WEAK   DEFAULT   30 _ZTS4base
 ```
 
-
-
-
 ### "继承"做了哪些事？
 
-### "成员访问"做了哪些事？
+C++类定义实际上是告诉编译器一种结构的内存布局，那么访问成员就是“对象的指针地址+偏移地址”。
+```
+#include <iostream>
+class SimpleClass
+{
+public:
+	int a;
+	float b;
+	double c;
+};
 
-### "运行期"做了哪些事？
+int main(int argc, char const *argv[])
+{
+	SimpleClass  sc;
+	SimpleClass* p = &sc;
+	*(int*)p = 1;
+	*(float*)((char*)p + sizeof(int)) = 2.0f;
+	*(double*)((char*)p + sizeof(int) + sizeof(float)) = 3.0d;
+	std::cout<<"a: "<<sc.a<<", b: "<<sc.b << ", c: "<<sc.c << std::endl;
+	return 0;
+}
+//output:
+//a: 1, b: 2, c: 3
+```
+继承就是把相关类声明的“布局”组织在一起，上文中简单类“Point3d”布局：
+![](https://raw.githubusercontent.com/lixiang-share/lixiang-share.github.io/master/img/cpp_class_model_jicheng.png)
 
+#### 多态下的继承 
 
-## 总结
+base class具有virtual function，那么类内存布局会想应多出一个world的vtbl指针，以便实现运行时多态，布局如<b>多态下class模型</b>所示。此时付出的成本有哪些呢？
++ 在对象类型发生向上转型，即“裁剪”时，必须调整 vptbl，以便适应新的vtbl
++ 析构/构造等情况同样做想应vptbl调整，这些都是编译器默默完成
++ 调用func调用成本，运行时多一次指针偏移运算
+
+#### virtual 继承
+
+vitual 继承用来解决菱形继承问题
+```
+class A { };
+class B : public A { };
+class C : public A { };
+class D:  public B ,  public C { }
+```
+![](http://www.plantuml.com/plantuml/png/SoWkIImgAStDuN9KiAdHrLLmWZ6SkPmW31SkPnZ38JKl1QWM0000)
+
+如果改为virtual 继承, 会把公共继承类布局独立出来，并增加一个指针指向它， 付出两方面成本：
++ 每个vitual继承增加一个指向vptr指向公共继承类
++ 访问公共继承类成员时需要从vptr中转
+
+```
+class A { };
+class B : public virtual A { };
+class C : public virtual A { };
+class D:  public B ,  public C { }
+```
+![](https://raw.githubusercontent.com/lixiang-share/lixiang-share.github.io/master/img/cpp_obj_model_virtual_jicheng.png)
